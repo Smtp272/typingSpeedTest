@@ -17,11 +17,12 @@ class TypingSpeed():
         ##VARIABLES
         self.typing_speed = 0
         self.correct_words = 0
+        self.incorrect_words = 0
         (self.hours, self.mins, self.secs) = (0, 0, 0)
         self.time_left = self._time_left_calc()
         self.tick = False
         self.t = 15
-        self.random_paragraphs = self.get_paragrahs()
+        self.random_paragraphs = self._get_paragraphs()
 
         ##ENTRY
         self.text_entry = Entry(self.window, width=75, state="disabled")
@@ -54,25 +55,24 @@ class TypingSpeed():
         self.reset_test_button.grid(column=2, row=5, columnspan=2, pady=10)
 
         ###ANALYSIS SECTION
+        self.feedback_textbox = Text(self.window, height=8, bg="white", pady=5, font=("Montserrat", 10))
+        self.feedback_textbox.grid(column=0, row=6, columnspan=4)
 
         self.window.mainloop()
 
     def _start_test(self):
+        """start typing test"""
+        #clear any initial feedback
+        self.feedback_textbox.delete(1.0, END)
         self.tick = True
         self._countdown()
         if self.tick:
-            text = self.text_entry.get()
-            self._calculate_speed(text, 1)
+            self._compare_typed_text()
             self._reset_test()
             self.window.update()
 
-    def _calculate_speed(self, text, duration_in_minutes):
-        length_of_text = len(text.split())
-        self.typing_speed = int(length_of_text / duration_in_minutes)
-        self._check_scores()
-
     def _countdown(self):
-        """timer"""
+        """complete timer"""
         if self.tick:
             self.text_entry.config(state="normal")
             if self.t != -1:
@@ -83,14 +83,17 @@ class TypingSpeed():
                 self._countdown()
 
     def _update_timer(self):
+        """calculate time left and update it"""
         self.mins, self.secs = divmod(self.t, 60)
         self.hours, self.mins = divmod(self.mins, 60)
         self.timer_label.config(text=self._time_left_calc())
 
     def _time_left_calc(self):
+        """generate time left in hours:min:sec format"""
         return f"{self.hours:02d}:{self.mins:02d}:{self.secs:02d}"
 
     def _reset_test(self):
+        """reset"""
         self._reset_variables()
         self.high_score_label.config(text=f"High Scores: {self._get_high_scores()}")
         self.timer_label.config(text=self._time_left_calc())
@@ -100,6 +103,7 @@ class TypingSpeed():
         self.text_entry.config(state="disabled")
 
     def _check_scores(self):
+        """compares current typing speed to the highest scores"""
         scores = self._get_high_scores()
         self._time_up_info(scores)
         if scores.count(self.typing_speed) > 0:
@@ -114,32 +118,58 @@ class TypingSpeed():
             json.dump(user_data, f)
 
     def _time_up_info(self, scores):
+        """generate and show relevant message to the user using messagebox"""
+        common_message = f'Your typing speed was {self.typing_speed} WPM with {self.correct_words} correct words per minute(CPM)'
         if self.typing_speed > scores[0]:
-            message = f"NEW HIGH SCORE!!\n\nYour typing speed was {self.typing_speed} WPM"
+            message = f"NEW HIGH SCORE!!\n\n{common_message }"
         else:
-            message = f"Your typing speed was {self.typing_speed} WPM"
+            message = common_message
         messagebox.showinfo(title="Time up", message=message)
-        self.speed_label.config(text=f"WPM : {self.typing_speed} wpm")
 
     def _reset_variables(self):
+        """resets the initial variables to default """
         self.tick = False
         (self.hours, self.mins, self.secs) = (0, 0, 0)
         self.correct_words = 0
+        self.incorrect_words = 0
         self.typing_speed = 0
         self.t = 60
-        self.random_paragraphs = self.get_paragrahs()
+        self.random_paragraphs = self._get_paragraphs()
 
     def _get_high_scores(self):
+        """reads and returns high scores from json file"""
         with open("data.json", "rb") as data:
             high_scores = json.load(data)['scores']
             return high_scores
 
     def _compare_typed_text(self):
-        print(self.random_paragraphs.split(" "))
+        """compares original text to user input and calculate speeds"""
+        user = self.text_entry.get().split(" ")
+        correct = self.random_paragraphs.split(" ")
+        wrong_words = []
+        self.typing_speed = len(user)
 
-        pass
+        # compare user input to original text while calculating correct and incorrect words
+        for i in range(0, self.typing_speed):
+            if user[i] == correct[i]:
+                self.correct_words += 1
+            else:
+                self.incorrect_words +=1
+                wrong_words.append(f"'{user[i]}' instead of '{correct[i]}'")
+        message = f"You mistyped {self.incorrect_words} word(s)."
+        for i in wrong_words:
+            message += f"\n    • {i}"
 
-    def get_paragrahs(self):
+        # render feedback
+        self.feedback_textbox.insert(1.0, message)
+        self.speed_label.config(text=f"WPM : {self.typing_speed}")
+        self.correct_words_label.config(text=f"CWPM : {self.correct_words}")
+
+        # check and compare user score
+        self._check_scores()
+
+    def _get_paragraphs(self):
+        """returns a random paragraph from json file"""
         with open("data.json", "rb") as data:
             return random.choice(json.load(data)['text'])
 
